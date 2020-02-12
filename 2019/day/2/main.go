@@ -31,9 +31,7 @@ func main() {
 
 		for x := 0; x <= 99; x++ {
 			for y := 0; y <= 99; y++ {
-				tmp := make([]int, len(intcodes))
-				copy(tmp, intcodes)
-				computer := &Computer{intcodes: tmp}
+				computer := NewComputer(intcodes)
 				computer.setInputs(x, y)
 				computer.parse()
 				if computer.output() == 19690720 {
@@ -71,9 +69,11 @@ type Computer struct {
 	intcodes []int
 }
 
-// NewComputer whips us up a new Intcode computer, with the specified intcodes, expected as a slice of integers.
+// NewComputer whips us up a new Intcode computer, with a copy of the intcodes, expected as a slice of integers.
 func NewComputer(intcodes []int) *Computer {
-	return &Computer{intcodes: intcodes}
+	tmp := make([]int, len(intcodes))
+	copy(tmp, intcodes)
+	return &Computer{tmp}
 }
 
 func (c *Computer) run(oc opcode) {
