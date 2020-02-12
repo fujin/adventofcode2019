@@ -104,19 +104,18 @@ func (c *Computer) parse() {
 	// Start looking at the head for the first opcode and potential parameters
 	for idx := 0; idx <= len(c.intcodes); {
 		switch c.intcodes[idx] {
-		case 1, 2:
+		case OpcodeAddAndStore, OpcodeMultiplyAndStore:
 			opcode := opcode{
 				op: c.intcodes[idx],
 				a:  c.intcodes[idx+1],
 				b:  c.intcodes[idx+2],
 				x:  c.intcodes[idx+3],
 			}
-			// log.Println("loading", opcode)
-			// Run the opcode against the intcode storage, potentially manipulating storage or positional values in-place.
+			// Run the opcode against the program memory, potentially manipulating storage or positional values in-place.
 			c.run(opcode)
 			// As we found a correct opcode (1 or 2), advance the intcode position by the number of values in the instruction.
 			idx += 4
-		case 99:
+		case OpcodeHalt:
 			// log.Println("halt")
 			return
 		}
