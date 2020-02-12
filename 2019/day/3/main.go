@@ -68,34 +68,42 @@ func main() {
 
 	scanner := bufio.NewScanner(f)
 	// scan tokens (lines) from the puzzle input
-	for scanner.Scan() {
-		paths := strings.Split(scanner.Text(), ",")
-		log.Println("paths", paths)
-		// Run the path, grid and distance solver.
-		solve(paths)
+	c1 := make(coords)
+	c2 := make(coords)
+
+	// First grid, first line
+	if scanner.Scan() {
+		c1 = solve(strings.Split(scanner.Text(), ","))
 	}
+
+	// You can guess.
+	if scanner.Scan() {
+		c2 = solve(strings.Split(scanner.Text(), ","))
+	}
+
+	log.Println("coords1", c1)
+	log.Println("coords2", c2)
 }
 
-func solve(paths []string) {
+func solve(paths []string) (c coords) {
 	log.Println("paths", paths)
 
-	// Unbufferred channel - one for each path.
-	coords := make(chan coord)
+	// Coordinate channel, unbuffered, as one will be emit for each coordinate step.
+	ccd := make(chan coord)
 
-	// Signal channel
+	// Quit channel, so when we're done reading, we can kill the other goroutine.
 	qc := make(chan struct{}, 1)
 
-	// Start reader with access to coordinate channel and quit channel.
-	go draw(coords, qc)
+	// Start reader with read access to coordinate channel.
+	go draw(ccd, qc)
 
-	// Emit (blocking send) coordinates to channel.
-	trace(paths, coords)
+	// Emit coordinates to the unbuffered channel (blocking).
+	trace(paths, ccd)
 
-	// Signal reader to quit.
-	qc <- struct{}{}
+	return
 }
 
-func trace(path []string, coords chan coord) {
+func trace(path []string, coords chan<- coord) {
 	step := map[string][]int{
 		"U": []int{0, 1},
 		"D": []int{0, -1},
@@ -109,13 +117,13 @@ func trace(path []string, coords chan coord) {
 		dx := step[direction][0]
 		dy := step[direction][1]
 		distance, _ := strconv.Atoi(segment[1:])
-		log.Println(
-			"segment", segment,
-			"direction", direction,
-			"dx", dx,
-			"dy", dy,
-			"distance", distance,
-		)
+		// log.Println(
+		// 	"segment", segment,
+		// 	"direction", direction,
+		// 	"dx", dx,
+		// 	"dy", dy,
+		// 	"distance", distance,
+		// )
 
 		for n := 0; n <= distance; n++ {
 			x += dx
@@ -127,8 +135,8 @@ func trace(path []string, coords chan coord) {
 	return
 }
 
-func draw(cc chan coord, qc <-chan struct{}) {
-	cm := make(map[coord]int)
+func draw(cc chan coord, qc chan struct{}) coords {
+	cm := make(coords)
 	// Path length is the number of messages received up until this coordinate.
 	// In other languages it would be the enumerator index. Perhaps use a slice?
 
@@ -139,10 +147,13 @@ func draw(cc chan coord, qc <-chan struct{}) {
 				// coordinate does not exist in map
 				cm[cd] = cd.dist
 			}
+			break
 		case <-qc:
-			log.Println("cm", cm)
+			return cm
 		}
 	}
+
+	return cm
 }
 
 // ManhattanDistance returns either zero or the distance between two points on a float64 grid of the same length/size.
