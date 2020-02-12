@@ -52,8 +52,12 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 )
+
+type coord struct{ x, y, dist int }
+type coords map[coord]int
 
 func main() {
 	f, err := os.Open("input")
@@ -65,8 +69,79 @@ func main() {
 	scanner := bufio.NewScanner(f)
 	// scan tokens (lines) from the puzzle input
 	for scanner.Scan() {
-		log.Println(scanner.Text())
-		coords := strings.Split(scanner.Text(), ",")
+		paths := strings.Split(scanner.Text(), ",")
+		log.Println("paths", paths)
+		// Run the path, grid and distance solver.
+		solve(paths)
+	}
+}
+
+func solve(paths []string) {
+	log.Println("paths", paths)
+
+	// Unbufferred channel - one for each path.
+	coords := make(chan coord)
+
+	// Signal channel
+	qc := make(chan struct{}, 1)
+
+	// Start reader with access to coordinate channel and quit channel.
+	go draw(coords, qc)
+
+	// Emit (blocking send) coordinates to channel.
+	trace(paths, coords)
+
+	// Signal reader to quit.
+	qc <- struct{}{}
+}
+
+func trace(path []string, coords chan coord) {
+	step := map[string][]int{
+		"U": []int{0, 1},
+		"D": []int{0, -1},
+		"R": []int{1, 0},
+		"L": []int{-1, 0},
+	}
+
+	var x, y int
+	for _, segment := range path {
+		direction := string(segment[0])
+		dx := step[direction][0]
+		dy := step[direction][1]
+		distance, _ := strconv.Atoi(segment[1:])
+		log.Println(
+			"segment", segment,
+			"direction", direction,
+			"dx", dx,
+			"dy", dy,
+			"distance", distance,
+		)
+
+		for n := 0; n <= distance; n++ {
+			x += dx
+			y += dy
+			coords <- coord{x, y, n}
+		}
+	}
+
+	return
+}
+
+func draw(cc chan coord, qc <-chan struct{}) {
+	cm := make(map[coord]int)
+	// Path length is the number of messages received up until this coordinate.
+	// In other languages it would be the enumerator index. Perhaps use a slice?
+
+	for {
+		select {
+		case cd := <-cc:
+			if _, ok := cm[cd]; !ok {
+				// coordinate does not exist in map
+				cm[cd] = cd.dist
+			}
+		case <-qc:
+			log.Println("cm", cm)
+		}
 	}
 }
 
