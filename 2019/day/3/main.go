@@ -48,123 +48,87 @@ What is the Manhattan distance from the central port to the closest intersection
 To begin, get your puzzle input. */
 
 import (
-	"bufio"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 )
 
-type coord struct{ x, y, dist int }
-type coords map[coord]int
+type coord struct{ x, y int }
+type tracker [2]float64
 
 func main() {
-	f, err := os.Open("input")
+	bytes, err := ioutil.ReadFile("input")
 	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	// scan tokens (lines) from the puzzle input
-	c1 := make(coords)
-	c2 := make(coords)
-
-	// First grid, first line
-	if scanner.Scan() {
-		c1 = solve(strings.Split(scanner.Text(), ","))
+		return
 	}
 
-	// You can guess.
-	if scanner.Scan() {
-		c2 = solve(strings.Split(scanner.Text(), ","))
-	}
+	contents := string(bytes)
+	split := strings.Split(contents, "\n")
+	hit := make(map[coord]tracker)
 
-	log.Println("coords1", c1)
-	log.Println("coords2", c2)
-}
-
-func solve(paths []string) (c coords) {
-	log.Println("paths", paths)
-
-	// Coordinate channel, unbuffered, as one will be emit for each coordinate step.
-	ccd := make(chan coord)
-
-	// Quit channel, so when we're done reading, we can kill the other goroutine.
-	qc := make(chan struct{}, 1)
-
-	// Start reader with read access to coordinate channel.
-	go draw(ccd, qc)
-
-	// Emit coordinates to the unbuffered channel (blocking).
-	trace(paths, ccd)
-
-	return
-}
-
-func trace(path []string, coords chan<- coord) {
-	step := map[string][]int{
-		"U": []int{0, 1},
-		"D": []int{0, -1},
-		"R": []int{1, 0},
-		"L": []int{-1, 0},
-	}
-
-	var x, y int
-	for _, segment := range path {
-		direction := string(segment[0])
-		dx := step[direction][0]
-		dy := step[direction][1]
-		distance, _ := strconv.Atoi(segment[1:])
-		// log.Println(
-		// 	"segment", segment,
-		// 	"direction", direction,
-		// 	"dx", dx,
-		// 	"dy", dy,
-		// 	"distance", distance,
-		// )
-
-		for n := 0; n <= distance; n++ {
-			x += dx
-			y += dy
-			coords <- coord{x, y, n}
+	for i, s := range split {
+		if s == "" {
+			continue
 		}
-	}
 
-	return
-}
+		loc := coord{0, 0}
+		traversed := float64(0)
 
-func draw(cc chan coord, qc chan struct{}) coords {
-	cm := make(coords)
-	// Path length is the number of messages received up until this coordinate.
-	// In other languages it would be the enumerator index. Perhaps use a slice?
-
-	for {
-		select {
-		case cd := <-cc:
-			if _, ok := cm[cd]; !ok {
-				// coordinate does not exist in map
-				cm[cd] = cd.dist
+		for _, step := range strings.Split(s, ",") {
+			distance, err := strconv.Atoi(step[1:])
+			if err != nil {
+				log.Fatalln("couldn't parse step:", step)
 			}
-			break
-		case <-qc:
-			return cm
+			var f func(*coord)
+			switch step[0] {
+			case 'R':
+				f = func(c *coord) {
+					c.x++
+				}
+			case 'L':
+				f = func(c *coord) {
+					c.x--
+				}
+			case 'U':
+				f = func(c *coord) {
+					c.y++
+				}
+			case 'D':
+				f = func(c *coord) {
+					c.y--
+				}
+			}
+			for n := 1; n <= distance; n++ {
+				f(&loc)
+				hits := hit[loc]
+				if hits[i] != float64(0) {
+					hits[i] = math.Min(hits[i], float64(n)+traversed)
+				} else {
+					hits[i] = float64(n) + traversed
+				}
+				hit[loc] = hits
+			}
+			traversed += float64(distance)
 		}
+
+		closest := math.MaxFloat64
+		least := math.MaxFloat64
+
+		for loc, hits := range hit {
+			if hits[0] != float64(0) && hits[1] != float64(0) {
+				distance := math.Abs(float64(loc.x)) + math.Abs(float64(loc.y))
+				if distance < closest {
+					closest = distance
+				}
+				sum := hits[0] + hits[1]
+				if sum < least {
+					least = sum
+				}
+			}
+		}
+		fmt.Printf("Part A: %d, Part B: %d\n", int(closest), int(least))
 	}
-
-	return cm
-}
-
-// ManhattanDistance returns either zero or the distance between two points on a float64 grid of the same length/size.
-func ManhattanDistance(a, b []float64) (dist float64) {
-	if len(a) != len(b) {
-		return 0
-	}
-
-	for i := 0; i < len(a); i++ {
-		dist += math.Abs(b[i] - a[i])
-	}
-
-	return
 }
